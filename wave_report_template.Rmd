@@ -13,12 +13,16 @@ knitr::opts_chunk$set(echo = FALSE, dpi = 600, fig.width=8, dev = "ragg_png")
 
 library(adcp)
 library(canadianmaps)
+library(lubridate)
 library(ggplot2)
 library(ggspatial)
 library(readr)
 library(dplyr)
 library(here)
+library(waves)
+library(RColorBrewer)
 library(sf)
+library(tidyr)
 
 theme_set(theme_light())
 
@@ -48,7 +52,7 @@ dat <- read_csv("R:/data_branches/wave/processed_data/deployment_data/annapolis/
 
 link <- "https://docs.google.com/spreadsheets/d/1DVfJbraoWL-BW8-Aiypz8GZh1sDS6-HtYCSrnOSW07U/edit#gid=0"
 
-depl_id <- googlesheets4::read_sheet(link, sheet = "Wave Tracking") %>% 
+depl_info <- googlesheets4::read_sheet(link, sheet = "Wave Tracking") %>% 
   filter(depl_id == unique(dat$deployment_id))
 
 # path to most recent NSDFA tracking sheet -- update this
@@ -57,13 +61,16 @@ path_nsdfa <- file.path(
 ) 
 
 # nsdfa tracking sheet
-tracking <- adcp_read_nsdfa_metadata(path_nsdfa) %>% 
-  filter(Station_Name == depl_id$station, Depl_Date == depl_id$depl_date)
+metadata <- adcp_read_nsdfa_metadata(path_nsdfa) %>% 
+  filter(Station_Name == depl_info$station, Depl_Date == depl_info$depl_date)
 
-county <- depl_id$county
+county <- depl_info$county
+depl_id <- depl_info$depl_id
+year_utc <- year(depl_info$depl_date)
 
 i = 1 # counter for table
 k = 1 # counter for figure number
+
 text_size <- 3.5
 crs <- 4326
 ```
@@ -100,7 +107,7 @@ can <- bind_rows(
 
 # Introduction
 
-The Centre for Marine Applied Research (CMAR) measures [essential ocean variables](https://goosocean.org/what-we-do/framework/essential-ocean-variables/) around the coast of Nova Scotia through their Coastal Monitoring Program. Through this Program, the Nova Scotia Department of Fisheries and Aquaculture (NSDFA) and CMAR have deployed Acoustic Doppler Current Profilers (ADCPs) at a variety of locations to measure sea state (waves) and currents. This document presents deployment details and summary figures of sea state data collected for deployment **`r depl_id$depl_id`** in `r county` County (Figure `r k` and Figure `r k+1`). The corresponding current report can be found on the CMAR website [Reports page](https://cmar.ca/reports/).
+The Centre for Marine Applied Research (CMAR) measures [essential ocean variables](https://goosocean.org/what-we-do/framework/essential-ocean-variables/) around the coast of Nova Scotia through their Coastal Monitoring Program. Through this Program, the Nova Scotia Department of Fisheries and Aquaculture (NSDFA) and CMAR have deployed Acoustic Doppler Current Profilers (ADCPs) at a variety of locations to measure sea state (waves) and currents. This document presents deployment details and summary figures of sea state data collected for deployment **`r depl_id`** in `r county` County (Figure `r k` and Figure `r k+1`). The corresponding current report can be found on the CMAR website [Reports page](https://cmar.ca/reports/).
 
 The data are available for download from the Nova Scotia [Open Data Portal](https://data.novascotia.ca/browse?q=wave&sortBy=relevance). For more information on CMAR and the sea state datasets, visit the [CMAR website](https://cmar.ca/).
 
@@ -129,7 +136,7 @@ k <- k + 1
 
 # station coordinates
 station_sf <- st_as_sf(
-  tracking, coords = c("Depl_Lon", "Depl_Lat"), crs = crs, agr = "constant"
+  metadata, coords = c("Depl_Lon", "Depl_Lat"), crs = crs, agr = "constant"
 )
 
 # zoom in area where station is located
@@ -153,32 +160,25 @@ ggplot() +
 
 ```
 `r cat('\n')`
-Figure `r k`:  deployment in `r depl_id$waterbody`.
+Figure `r k`:  deployment in `r depl_info$waterbody`.
 
 
 \newpage
 ## Data Collection 
 
-CMAR collects wave data using upward facing ADCPs mounted on the sea floor.  
+CMAR collects wave data using upward facing Acoustic Doppler Current Profilers (ADCPs) mounted on the sea floor. An ADCP uses sound to measure wave orbital velocities over time, which are used to calculate parameters including wave height, wave period, and mean current speed and direction [@RN29849]. CMAR uses several ADCP instrument models, including the Sentinel V20, Sentinel V50, Sentinel V100, and Workhorse Sentinel 600kHz. Each ADCP is typically deployed for 1 - 3 months.
+
+Wave height is the vertical distance between the peak and trough of a wave. The reported wave height is a statistic based on many measurements recorded in a given time interval.
+
+Dp = directioN!
+
+**The results from multiple sound "pings" are averaged over a specified averaging interval to create a time series within a specified ensemble interval. The wave height stati **
 
 
-Wave datasets consist of time-series measurements of significant wave height, wave period, and average wave direction, with data measured at a frequency of 10 minutes to 1 hour depending on the deployment. Each ADCP is deployed on the seafloor and can measure
-water speed throughout the water column. ADCPs transmit ultrasonic “pings” of
-sound at a specific frequency. The pings are measured as they reflect back from particles in the water column. Sound reflecting from particles moving away from the ADCP have a slightly lower
-frequency than sound reflected from particles moving toward the instrument. The difference in
-frequencies is called a Doppler Shift and is used to calculate water speed and direction.
+One key statistic is the significant wave height (Hs), which is defined as 1) four times the standard deviation of the surface elevation, or 2) as four times the square root of the zeroth-order moment of the wave spectrum. This is about equivalent to another key statistic, the average of the largest one third of waves in the measurement interval (H1/3). Similarly, H1/10 is the average of the largest one tenth of waves in the measurement interval, and Hmax is the height of the largest wave in the interval [@RN29850].
 
-Each individual row of data (ensemble) from the ADCPs presents wave height (significant, maximum, height average of the top 1/3, and 1/10 largest waves) measured in metres, period (peak, maximum, period average of the top 1/3, and 1/10 largest waves) measured in seconds and peak wave direction in degrees relative to true north. Each individual row of data (ensemble) from the wind-wave buoys presents wave height (significant, maximum) in metres and average wave direction in degrees relative to true north, corrected for localized magnetic declination specific to the deployment coordinates. The Ensemble Interval (time between averaged measurements) varies between data sets depending on the configuration of the instrument used for a given deployment, as indicated in Table 1 below. 
+The period (time between waves) for each wave height statistic is also recorded, as well as the mean current speed and direction. For simplicity, only Hs and Hmax and the corresponding periods are presented below. The full wave datasets can be downloaded from the Nova Scotia Open Data Portal. ADCPs also measure current speed and direction at different depths through the water column Current data reports can be found on the CMAR website, and full datasets can be downloaded from the Nova Scotia Open Data Portal.
 
-\newpage
-```{r}
-knitr::include_graphics("adcp_report_diagram.png")
-k <- k + 1
-```
-
-Figure `r k`: Schematic representation of ADCP deployment (not to scale).
-
-`r knitr::knit_exit()`
 
 ## Data Terminology & Notes
 
@@ -188,109 +188,66 @@ Averaging Interval - Time (seconds) over which multiple recordings are taken and
 
 Pings/Ensemble - Number of individual recordings taken and averaged over the course of the averaging interval.
 
-Bin Size - Vertical size (metres) of parcels from which current data are recorded throughout the water column.
-
-Hmax - Maximum wave height (metres).
-
-Hs - Significant wave height (metres).
-
-Tp - Peak wave period (seconds).
 
 Dp - Peak wave direction from which the wave is travelling (degrees relative to true north) at the peak period.
-
-AverageDirection - The average value of all valid readings of the direction from which the wave is travelling, recorded across all bins over the course of the ensemble.
 
 **Note:**
 
 All wave data presented in this report are travelling towards the sensor. All compass headings are relative to True North.
 
-Parameters measured may differ based on instrument model.
-
-"ADCP" refers to the following instrument models: "Sentinel V20", "Workhorse Sentinel 600kHz", "Sentinel V100", and "Sentinel V50". 
 
 \newpage
-# `r depl_id$depl_id` Sea State Data
-Table 1: Deployment details for `r depl_id$depl_id`
-```{r, echo=FALSE, message=FALSE,results='asis'}
-write_metadata_table<-function (metadata) 
-{
-  table.out <- metadata %>% 
-    select(`Deployment ID` = `Deployment ID`,
-                               `Station Name` = `Station Name`,
-                               `Instrument Model` = Model,
-                               Latitude = `Deployment Latitude`, 
-                               Longitude = `Deployment Longitude`,
-                               `Deployment Date` = `Deployment Date`, 
-                               `Recovery Date` = `Recovery Date`, 
-                               `Deployment Duration (d)` = `Deployment Duration`,
-                               `Depth (m)` = `Depth`,
-                               `Ensemble Interval (s)` = `Ensemble Interval`,
-                               `Averaging Interval (s)` =  `Averaging Interval`,
-                               `Pings/Ensemble` = `Pings per Ensemble`,
-                               `Bin Size (m)` = `Bin Size`,
-                               `First Bin Range` = `First Bin Range`)%>% 
-    mutate(`Depth (m)` = as.numeric(`Depth (m)`))
-  
-  table.out
-}
+```{r}
+knitr::include_graphics("adcp_report_diagram.png")
+k <- k + 1
+```
 
-
-table <- write_metadata_table(filter(metadata,`Deployment ID` == deployment_ID))
-t_table <- data.frame(t(table)) %>% 
-  mutate( Record = colnames(table)) %>% 
-  select( Record, 'Deployment Info' = 1)
-rownames(t_table) <- NULL
-
-# kable(t_table, align = "l",
-#       caption = paste("Table 1: Deployment details for ", deployment_ID , sep = ""))
-
-flextable<-flextable(t_table)
-flextable <-delete_part(flextable,part="header")
-
-small_border = fp_border(color="gray", width = 1)
-flextable<-vline(flextable, border = small_border, part = "all" )%>%
-  border_outer(part="all", border = small_border )%>%
-  border_inner_h(part="all", border = small_border )%>%
-  border_inner_v(part="all", border = small_border )%>%
-  bold(i = NULL, j = 1, bold = TRUE, part = "body")
-flextable %>% autofit() %>% fit_to_width(7.5)
+Figure `r k`: Schematic representation of ADCP deployment (not to scale).
 
 
 
+
+\newpage
+# `r depl_id` Sea State Data
+
+Table 1: Deployment details for `r depl_id`
+
+```{r}
+metadata %>% 
+  wv_write_report_table() %>% 
+  wv_format_report_table()
 ```
 
 \newpage
-## Time Series Plot
-```{r, results="asis", eval=TRUE}
-k = k+1
+## Wave Height
 
-#c("darkblue","lightblue")
+### Time Series
+```{r}
+k = k + 1
 
-ggplot(dat, aes(timestamp_utc, Hs)) +
-  geom_col(color = "darkblue")
+vars <- c("Hs", "Hmax", "H1/3", "H1/10", "Tp", "Tmax", "T1/3", "T1/10" )
 
-ggplot(dat, aes(timestamp_utc, Hs)) +
-  geom_line(color = "darkblue")
+dat_long <- dat %>% 
+  pivot_longer(
+    cols = all_of(vars), values_to = "value", names_to = "variable"
+  )
 
-ggplot(dat, aes(Hs)) + geom_histogram(binwidth = 0.05)
-ggplot(dat, aes(Tp)) + geom_histogram(binwidth = 2)
-
-ggplot(dat, aes(timestamp_utc, Tp)) +
-  geom_point()
-
-ggplot(dat, aes(timestamp_utc, Tp)) +
-  geom_line()
-
-
-ggplot(dat, aes(timestamp_utc, Hmax)) +
-  geom_col(color = "darkblue")
-
-
-
+wv_plot_ts(dat_long) 
 
 ```
-Figure `r k`: Maximum wave height (Hmax) & significant wave height (Hs) at `r deployment_ID` deployed in `r year`.
+Figure `r k`: Significant wave height (Hs) and maximum wave height at `r depl_id` deployed in `r year_utc`.
 
+### Frequency
+```{r}
+k = k + 1
+
+wv_plot_histogram(dat_long, vars = c("Hs", "Hmax"), binwidth = 0.1)
+
+```
+Figure `r k`: Histogram of significant wave height and maximum wave height at `r depl_id` deployed in `r year_utc`.
+
+
+`r knitr::knit_exit()`
 
 \newpage
 ## Frequency Plots 
