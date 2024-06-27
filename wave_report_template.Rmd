@@ -6,6 +6,7 @@ output:
     toc_depth: 3
 editor_options: 
   chunk_output_type: console
+bibliography: wave_references.bib
 ---
 
 ```{r, include=FALSE}
@@ -160,55 +161,47 @@ ggplot() +
 
 ```
 `r cat('\n')`
-Figure `r k`:  deployment in `r depl_info$waterbody`.
+Figure `r k`: Location of Acoustic Current Doppler Profiler deployed in `r depl_info$waterbody` in `r year_utc`.
 
+`r k <- k + 1`
 
 \newpage
 ## Data Collection 
 
-CMAR collects wave data using upward facing Acoustic Doppler Current Profilers (ADCPs) mounted on the sea floor. An ADCP uses sound to measure wave orbital velocities over time, which are used to calculate parameters including wave height, wave period, and mean current speed and direction [@RN29849]. CMAR uses several ADCP instrument models, including the Sentinel V20, Sentinel V50, Sentinel V100, and Workhorse Sentinel 600kHz. Each ADCP is typically deployed for 1 - 3 months.
+CMAR collects wave data using upward facing Acoustic Doppler Current Profilers (ADCPs) mounted on the sea floor for 1 - 3 months (Figure `r k`). An ADCP uses sound to measure current speed and direction through the water column. ADCP software uses many measurements recorded over a given time interval (averaging period) to calculate key sea state parameters, including wave height, period, and direction [@RN29853]. 
 
-Wave height is the vertical distance between the peak and trough of a wave. The reported wave height is a statistic based on many measurements recorded in a given time interval.
+CMAR uses several ADCP instrument models, including the Sentinel V20, Sentinel V50, Sentinel V100, and Workhorse Sentinel 600kHz. The data is processed using Velocity and WavesMon4 Software by Teledyne RD Instruments [@RN29849]. The data are compiled, formatted, and visualized for publication with  CMAR's `waves` R package [@RN29876]. 
 
-Dp = directioN!
+For an overview of "Waves Basics" and the wave calculations made by the Velocity and WavesMon software, refer to @RN29850. For more details on the instruments and software, refer to @RN29853 and @RN29849. 
 
-**The results from multiple sound "pings" are averaged over a specified averaging interval to create a time series within a specified ensemble interval. The wave height stati **
+## Wave Parameters
+
+Wave height is the vertical distance between the peak and trough of a wave [@RN29853]. One of the most common wave height parameters is the significant wave height, which is often defined as the average height of the largest one-third of waves in the sampling interval (H1/3) [@RN29853]. This roughly corresponds to the four times the square root of the zeroth-order moment of the wave spectrum, which is the quantity typically reported by the software [@RN29853]. Other common wave height parameters include the average height of the largest one-tenth of waves in the measurement interval (H1/10), and the height of the largest wave in the interval (Hmax) [@RN29850; @RN29913].
+
+Wave period is the time between consecutive waves. The peak wave period is associated with the largest spike of the power spectrum for a given time interval. T1/3, T1/10, and Tmax are the periods related to the corresponding wave height parameters [@RN29849].
+
+Wave direction indicates the direction the peak wave energy is propagating towards [@RN29853]. Direction is reported here relative to True North.
+
+Significant wave height and maximum wave height, their corresponding periods, and wave direction are presented below. A reports summarizing the associated current speed and direction measured the ADCP at this location can be found on the CMAR website. The full wave and current datasets can be downloaded from the Nova Scotia Open Data Portal.
+
+## Quality Control
+
+some quality control performed autmatically in the software
+Additional simple quality control applied here
 
 
-One key statistic is the significant wave height (Hs), which is defined as 1) four times the standard deviation of the surface elevation, or 2) as four times the square root of the zeroth-order moment of the wave spectrum. This is about equivalent to another key statistic, the average of the largest one third of waves in the measurement interval (H1/3). Similarly, H1/10 is the average of the largest one tenth of waves in the measurement interval, and Hmax is the height of the largest wave in the interval [@RN29850].
 
-The period (time between waves) for each wave height statistic is also recorded, as well as the mean current speed and direction. For simplicity, only Hs and Hmax and the corresponding periods are presented below. The full wave datasets can be downloaded from the Nova Scotia Open Data Portal. ADCPs also measure current speed and direction at different depths through the water column Current data reports can be found on the CMAR website, and full datasets can be downloaded from the Nova Scotia Open Data Portal.
-
-
-## Data Terminology & Notes
-
-Ensemble Interval - Time (seconds) between the beginning of one data recording and the next.
-
-Averaging Interval - Time (seconds) over which multiple recordings are taken and averaged during each ensemble.
-
-Pings/Ensemble - Number of individual recordings taken and averaged over the course of the averaging interval.
-
-
-Dp - Peak wave direction from which the wave is travelling (degrees relative to true north) at the peak period.
-
-**Note:**
-
-All wave data presented in this report are travelling towards the sensor. All compass headings are relative to True North.
-
+`r knitr::knit_exit()`
 
 \newpage
 ```{r}
 knitr::include_graphics("adcp_report_diagram.png")
-k <- k + 1
 ```
 
 Figure `r k`: Schematic representation of ADCP deployment (not to scale).
 
-
-
-
 \newpage
-# `r depl_id` Sea State Data
+# `r depl_id` Wave Data
 
 Table 1: Deployment details for `r depl_id`
 
@@ -247,7 +240,6 @@ wv_plot_histogram(dat_long, vars = c("Hs", "Hmax"), binwidth = 0.1)
 Figure `r k`: Histogram of significant wave height and maximum wave height at `r depl_id` deployed in `r year_utc`.
 
 
-`r knitr::knit_exit()`
 
 \newpage
 ## Frequency Plots 
