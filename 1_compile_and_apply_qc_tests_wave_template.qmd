@@ -1,0 +1,202 @@
+---
+format: 
+  html:
+    toc: true
+    toc-depth: 3
+    embed-resources: true
+editor_options: 
+  chunk_output_type: console
+params:
+  depl_file: depl_file
+---
+
+```{r, set-up, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, dpi = 600, fig.width = 8)
+
+library(data.table)
+library(dplyr)
+library(DT)
+library(knitr)
+library(googlesheets4)
+library(here)
+library(lubridate)
+#library(qaqcmar)
+#library(sensorstrings)
+library(plotly)
+library(stringr)
+library(tidyr)
+library(waves)
+
+source(here("functions/subchunkify.R"))
+
+# depl_file <- "R:/data_branches/wave/raw_data/2024-06-03_process/data/2010.10.29 - Jordan Bay - Waves.txt"
+depl_file <- params$depl_file
+
+dt_options1 <- list(
+      dom = 'ft',
+      paging = FALSE,
+      searching = TRUE,
+      pageLength = 500,
+      columnDefs = list(list(className = 'dt-center', targets = "_all"))
+)
+
+dt_options2 <- list(
+      dom = 'Bft',
+      paging = FALSE,
+      searching = TRUE,
+      pageLength = 500,
+      scrollY = "500px",
+      scrollX = "500px",
+      columnDefs = list(list(className = 'dt-center', targets = "_all")),
+      buttons = c('copy', 'csv')
+)
+
+# ADCP TRACKING
+link <- "https://docs.google.com/spreadsheets/d/1DVfJbraoWL-BW8-Aiypz8GZh1sDS6-HtYCSrnOSW07U/edit#gid=0"
+
+gs4_deauth()
+
+adcp_tracking <- googlesheets4::read_sheet(
+  link, sheet = "Wave Tracking", range = "A:F"
+) 
+
+# extract deployment info from the file name
+depl_info <- wv_extract_deployment_info(depl_file)
+
+depl_tracking <- adcp_tracking %>%
+  filter(depl_date == depl_info$depl_date, station == depl_info$station)
+
+depl_id <- depl_tracking$depl_id
+county <- depl_tracking$county
+waterbody <- depl_tracking$waterbody
+station <- depl_tracking$station
+depl_date <- depl_tracking$depl_date
+
+# path to data export
+path_export <- file.path("R:/data_branches/wave/processed_data/deployment_data")
+
+file_name <- str_replace(
+  paste(
+    depl_info$depl_date, 
+    depl_info$station, 
+    depl_tracking$depl_id, sep = "_"
+  ), " ", "_")
+```
+
+```{r, format-data}
+#| message: false
+
+# format & flag data
+# ***assign flag of 4 to all of pictou depl??
+depl_dat <- depl_file %>%
+  wv_read_txt() %>%
+  wv_assign_cf_variable_names() %>%
+   wv_assign_short_variable_names() %>% 
+  wv_add_opendata_cols(metadata = depl_tracking) %>% 
+  wv_flag_sensor_depth_to_trim() %>% 
+  wv_test_grossrange(
+    county = county, first_pivot_col = 6, last_pivot_col = 17
+  ) %>%
+  wv_append_long_variable_names()
+
+# summarise flags
+qc_summary <- depl_dat %>% 
+  wv_pivot_vars_longer(first_pivot_col = 7, last_pivot_col = 18) %>% 
+  wv_pivot_flags_longer() %>% 
+  wv_summarise_flags() %>% 
+  mutate(
+    deployment_id = depl_id,
+    county = county, 
+    station = station, 
+    deployment_date = depl_date
+  ) %>% 
+  select(deployment_id, county, station, deployment_date, everything()) 
+
+depl_out <- depl_dat %>% 
+  filter(depth_trim_flag != 4)
+
+#################################################################
+#### EXPORT ####################################################
+
+saveRDS(
+  depl_out, 
+  paste0(paste(path_export, county, "new", file_name, sep = "/"), ".rds")
+)
+
+fwrite(
+  qc_summary,
+  paste(path_export, "qc_flag_summary.csv", sep = "/"),
+  append = TRUE
+)
+
+###############################################################
+###############################################################
+
+```
+
+# `r depl_id`: `r station` (`r format(depl_date)`)
+
+`r Sys.Date()`
+
+# QC Summary
+
+```{r}
+qc_summary %>% 
+  select(-c(deployment_id, county, station, deployment_date)) %>% 
+  mutate(variable = str_remove(variable, "sea_surface_wave_")) %>% 
+  datatable(options = dt_options2, rownames = FALSE, extensions = 'Buttons')
+```
+
+# QC Figures
+
+## Sensor Depth
+
+```{r}
+#| fig-height: 3
+wv_plot_depth_flags(depl_dat)
+```
+
+## Wave Variables
+
+```{r}
+#| results: asis
+
+dat <- depl_out %>% 
+  wv_assign_short_variable_names() %>% 
+  wv_pivot_vars_longer(first_pivot_col = 7, last_pivot_col = 18) %>% 
+  wv_pivot_flags_longer()
+
+var_pairs <- list(
+  c("significant_height_m", "peak_period_s"),
+  c("to_direction_degree", NA),
+  c("average_height_largest_33_percent_m", "period_largest_33_percent_s"),
+  c("average_height_largest_10_percent_m", "period_largest_10_percent_s"),
+  c("maximum_height_m", "period_maximum_s"),
+  c("sensor_depth_below_surface_m", NA),
+  c("sea_water_speed_m_s", "sea_water_to_direction_degree")
+)
+
+
+for(i in seq_along(var_pairs)) {
+  
+  vars_i <- na.omit(var_pairs[[i]])
+  n_vars <- length(vars_i)
+
+  cat(paste("## ", paste(vars_i, collapse =  " & "), "\n \n"))
+  
+  dat_i <- dat %>% 
+    filter(variable %in% vars_i) 
+   
+  p_i <- wv_plot_grossrange_flags(dat_i, n_col = 1)
+  
+  if(n_vars == 1) h <- 3
+  if(n_vars > 1) h <- 3 * n_vars
+  
+  subchunkify(p_i, fig_height = h, fig_width = 8.5)
+  
+  cat("\n\n")
+}
+
+```
+
+
