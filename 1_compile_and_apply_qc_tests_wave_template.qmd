@@ -20,16 +20,13 @@ library(knitr)
 library(googlesheets4)
 library(here)
 library(lubridate)
-#library(qaqcmar)
-#library(sensorstrings)
-library(plotly)
 library(stringr)
 library(tidyr)
 library(waves)
 
 source(here("functions/subchunkify.R"))
 
-# depl_file <- "R:/data_branches/wave/raw_data/2024-06-03_process/data/2010.10.29 - Jordan Bay - Waves.txt"
+#depl_file <- "R:/data_branches/wave/raw_data/2024-06-03_process/data/2010.10.29 - Jordan Bay - Waves.txt"
 depl_file <- params$depl_file
 
 dt_options1 <- list(
@@ -55,7 +52,6 @@ dt_options2 <- list(
 link <- "https://docs.google.com/spreadsheets/d/1DVfJbraoWL-BW8-Aiypz8GZh1sDS6-HtYCSrnOSW07U/edit#gid=0"
 
 gs4_deauth()
-
 adcp_tracking <- googlesheets4::read_sheet(
   link, sheet = "Wave Tracking", range = "A:F"
 ) 
@@ -86,22 +82,39 @@ file_name <- str_replace(
 ```{r, format-data}
 #| message: false
 
+# wave params only reocrded every 3 hours during these deployments
+if (depl_id %in% c("DG013", "DG014")) {
+  max_interval_hours <- 6
+} else max_interval_hours <- 4
+
+# wave params only recorded every 3 hours during these deployments
+if (county == "Digby") {
+  depth_threshold <- 2
+} else depth_threshold <- 1
+
 # format & flag data
 # ***assign flag of 4 to all of pictou depl??
 depl_dat <- depl_file %>%
   wv_read_txt() %>%
   wv_assign_cf_variable_names() %>%
-   wv_assign_short_variable_names() %>% 
+  wv_assign_short_variable_names() %>% 
   wv_add_opendata_cols(metadata = depl_tracking) %>% 
-  wv_flag_sensor_depth_to_trim() %>% 
-  wv_test_grossrange(
-    county = county, first_pivot_col = 6, last_pivot_col = 17
-  ) %>%
-  wv_append_long_variable_names()
+  wv_test_all(county = county, max_interval_hours = max_interval_hours) %>%
+  wv_assign_max_flag() %>% 
+  wv_append_long_variable_names() %>% 
+  wv_start_end_obs_to_trim(depth_threshold = depth_threshold) 
+
+if(depl_id == "QN005") {
+  depl_dat <- depl_dat %>% 
+    mutate(
+      trim_obs = if_else(row_number() == 1, ordered(4, levels = 1:4), trim_obs)
+    )
+}
 
 # summarise flags
 qc_summary <- depl_dat %>% 
-  wv_pivot_vars_longer(first_pivot_col = 7, last_pivot_col = 18) %>% 
+  # pivot function doesn't work with long var names!!
+  wv_assign_short_variable_names() %>% 
   wv_pivot_flags_longer() %>% 
   wv_summarise_flags() %>% 
   mutate(
@@ -110,10 +123,13 @@ qc_summary <- depl_dat %>%
     station = station, 
     deployment_date = depl_date
   ) %>% 
-  select(deployment_id, county, station, deployment_date, everything()) 
+  select(deployment_id, county, station, deployment_date, everything()) %>% 
+  arrange(qc_test, variable)
 
 depl_out <- depl_dat %>% 
-  filter(depth_trim_flag != 4)
+  filter(trim_obs != 4)
+
+qc_tests <- c("grossrange", "rolling_sd", "spike", "qc")
 
 #################################################################
 #### EXPORT ####################################################
@@ -153,49 +169,58 @@ qc_summary %>%
 
 ```{r}
 #| fig-height: 3
-wv_plot_depth_flags(depl_dat)
-```
+p <- wv_plot_depth_flags(depl_dat)
 
-## Wave Variables
+p
+```
 
 ```{r}
 #| results: asis
 
 dat <- depl_out %>% 
   wv_assign_short_variable_names() %>% 
-  wv_pivot_vars_longer(first_pivot_col = 7, last_pivot_col = 18) %>% 
   wv_pivot_flags_longer()
 
 var_pairs <- list(
-  c("significant_height_m", "peak_period_s"),
-  c("to_direction_degree", NA),
+  c("significant_height_m", "peak_period_s", "to_direction_degree"),
+  c("sea_water_speed_m_s", "sea_water_to_direction_degree"),
+  c("sensor_depth_below_surface_m", NA),
   c("average_height_largest_33_percent_m", "period_largest_33_percent_s"),
   c("average_height_largest_10_percent_m", "period_largest_10_percent_s"),
-  c("maximum_height_m", "period_maximum_s"),
-  c("sensor_depth_below_surface_m", NA),
-  c("sea_water_speed_m_s", "sea_water_to_direction_degree")
+  c("maximum_height_m", "period_maximum_s")
 )
-
 
 for(i in seq_along(var_pairs)) {
   
   vars_i <- na.omit(var_pairs[[i]])
   n_vars <- length(vars_i)
-
+  
+  if(n_vars == 1) h <- 2.75
+  if(n_vars > 1) h <- 2.75 * n_vars
+  
   cat(paste("## ", paste(vars_i, collapse =  " & "), "\n \n"))
   
-  dat_i <- dat %>% 
-    filter(variable %in% vars_i) 
-   
-  p_i <- wv_plot_grossrange_flags(dat_i, n_col = 1)
-  
-  if(n_vars == 1) h <- 3
-  if(n_vars > 1) h <- 3 * n_vars
-  
-  subchunkify(p_i, fig_height = h, fig_width = 8.5)
-  
-  cat("\n\n")
+  for(j in seq_along(qc_tests)) {
+    
+    test_j <- qc_tests[j]
+    
+    if(test_j == "qc") {
+      cat('\n### summary flags \n')
+    } else cat('\n###', test_j, '\n')
+    
+    dat_j <- dat %>% 
+      filter(variable %in% vars_i) 
+    
+    p_j <- wv_plot_flags(
+      dat_j, qc_tests = test_j, n_col = 1, flag_title = FALSE
+    )
+    
+    subchunkify(p_j[[1]], fig_height = h, fig_width = 8.5)
+    
+    cat("\n\n")
+  }
 }
+
 
 ```
 
