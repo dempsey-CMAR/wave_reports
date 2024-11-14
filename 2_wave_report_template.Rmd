@@ -4,6 +4,9 @@ output:
     reference_docx: cmar_report_template.docx
     toc: true
     toc_depth: 3
+params: 
+  county: county 
+  doc.hist: doc.hist
 editor_options: 
   chunk_output_type: console
 bibliography: wave_references.bib
@@ -25,13 +28,18 @@ library(lubridate)
 library(ggplot2)
 library(ggspatial)
 library(googlesheets4)
+library(ggpubr)
 library(dplyr)
 library(here)
+library(lattice)
+library(latticeExtra)
 library(waves)
 library(RColorBrewer)
+library(readxl)
 library(sf)
 library(stringr)
 library(tidyr)
+library(viridis)
 
 theme_set(theme_light())
 
@@ -41,10 +49,21 @@ theme_set(theme_light())
 ```{r, message=FALSE}
 
 # update this be be a param
-dat <- fread("R:/data_branches/wave/processed_data/deployment_data/annapolis/new/2020-10-22_Cornwallis NE_AN001.csv", data.table = FALSE)
+dat_raw <- readRDS("R:/data_branches/wave/processed_data/deployment_data/halifax/2009-12-08_Owls_Head_HL002.RDS") 
+
+dat <- dat_raw %>% 
+  wv_assign_short_variable_names() %>% 
+  select(
+    deployment_id,
+    timestamp_utc, 
+    contains(c("sensor", "significant", "peak", "direction", "sea_water"))
+  ) %>% 
+  wv_pivot_flags_longer() %>% 
+  filter(qc_flag_value < 4)
 
 link <- "https://docs.google.com/spreadsheets/d/1DVfJbraoWL-BW8-Aiypz8GZh1sDS6-HtYCSrnOSW07U/edit#gid=0"
 
+gs4_deauth()
 depl_info <- googlesheets4::read_sheet(link, sheet = "Wave Tracking") %>%
   filter(depl_id == unique(dat$deployment_id))
 
@@ -54,7 +73,7 @@ path_nsdfa <- file.path(
 ) 
 
 # nsdfa tracking sheet
-metadata <- adcp_read_nsdfa_metadata(path_nsdfa) #%>% 
+metadata <- adcp_read_nsdfa_metadata(path_nsdfa) %>% 
   filter(Station_Name == depl_info$station, Depl_Date == depl_info$depl_date)
 
 county <- depl_info$county
@@ -67,6 +86,12 @@ k = 1 # counter for figure number
 
 text_size <- 3.5
 crs <- 4326
+
+# document history
+hist <- read_excel("R:/tracking_sheets/wave_report_tracker.xlsx") %>% 
+  filter(Depl_ID == depl_id) %>% 
+  mutate(Date = as.character(Date)) %>% 
+  select(Version, Date, Amendments)
 ```
 
 ```{r, warning=FALSE}
@@ -99,11 +124,11 @@ can <- bind_rows(
   st_crop(bbox) 
 ```
 
-\newpage
 
+\newpage
 # Introduction
 
-The Centre for Marine Applied Research (CMAR) measures [essential ocean variables](https://goosocean.org/what-we-do/framework/essential-ocean-variables/) around the coast of Nova Scotia through their Coastal Monitoring Program. Through this Program, the Nova Scotia Department of Fisheries and Aquaculture (NSDFA) and CMAR have deployed Acoustic Doppler Current Profilers (ADCPs) at a variety of locations to measure sea state (waves) and currents. This document presents deployment details and summary figures of sea state data collected for deployment **`r depl_id`** in `r county` County (Figure `r k` and Figure `r k+1`). The corresponding current report can be found on the CMAR website [Reports page](https://cmar.ca/reports/).
+The Centre for Marine Applied Research (CMAR) measures [essential ocean variables](https://goosocean.org/what-we-do/framework/essential-ocean-variables/) around the coast of Nova Scotia through the Coastal Monitoring Program. As a part of this Program, the Nova Scotia Department of Fisheries and Aquaculture (NSDFA) and CMAR have deployed Acoustic Doppler Current Profilers (ADCPs) to measure sea state (waves) and currents. This document presents deployment details and summary figures of sea state data collected for a deployment in `r county` County (Figure `r k`), at the **`r station`** Station (Figure `r k+1`) in `r year_utc` (deployment ID `r depl_id`). The corresponding current report can be found on the CMAR website [Reports page](https://cmar.ca/reports/).
 
 The data are available for download from the Nova Scotia [Open Data Portal](https://data.novascotia.ca/browse?q=wave&sortBy=relevance). For more information on CMAR and the sea state datasets, visit the [CMAR website](https://cmar.ca/).
 
@@ -125,7 +150,6 @@ ggplot() +
 ```
 `r cat('\n')`
 Figure `r k`: `r county` County (green).
-
 
 ```{r, warning=FALSE, strip.white=TRUE}
 k <- k + 1
@@ -160,31 +184,13 @@ Figure `r k`: Location of Acoustic Current Doppler Profiler deployed in `r depl_
 
 `r k <- k + 1`
 
-\newpage
 ## Data Collection 
 
-CMAR collects wave data using upward facing Acoustic Doppler Current Profilers (ADCPs) mounted on the sea floor for 1 - 3 months (Figure `r k`). An ADCP uses sound to measure current speed and direction through the water column. ADCP software uses many measurements recorded over a given time interval (averaging period) to calculate key sea state parameters, including wave height, period, and direction [@RN29853]. 
+CMAR collects wave data using upward facing ADCPs that are mounted on the sea floor for 1 - 3 months (Figure `r k`). An ADCP uses sound to measure current speed and direction through the water column. ADCP software uses many measurements recorded over a given time interval to calculate key sea state parameters, including wave height, period, and direction [@RN29853]. 
 
-CMAR uses several ADCP instrument models, including the Sentinel V20, Sentinel V50, Sentinel V100, and Workhorse Sentinel 600kHz. The data is processed using Velocity and WavesMon4 Software by Teledyne RD Instruments [@RN29849]. The data are compiled, formatted, and visualized for publication with  CMAR's [`waves`](https://github.com/dempsey-CMAR/waves) R package [@RN29876]. 
+CMAR uses several ADCP instrument models, including the Sentinel V20, Sentinel V50, Sentinel V100, and Workhorse Sentinel 600kHz. The data is processed using Velocity and WavesMon4 Software [@RN29849]. The data are compiled, formatted, and visualized for publication with  CMAR's [`waves`](https://github.com/dempsey-CMAR/waves) R package [@RN29876]. 
 
 For an overview of "Waves Basics" and the wave calculations made by the Velocity and WavesMon software, refer to @RN29850. For more details on the instruments and software, refer to @RN29853 and @RN29849. 
-
-## Wave Parameters
-
-Wave height is the vertical distance between the peak and trough of a wave [@RN29853]. One of the most common wave height parameters is the significant wave height (Hs), which is often defined as the average height of the largest one-third of waves in the sampling interval (H1/3) [@RN29853]. This roughly corresponds to the four times the square root of the zeroth-order moment of the wave spectrum, which is the quantity typically reported by the software [@RN29853]. Other common wave height parameters include the average height of the largest one-tenth of waves in the measurement interval (H1/10), and the height of the largest wave in the interval (Hmax) [@RN29850; @RN29913].
-
-Wave period is the time between consecutive waves. The peak wave period (Tp) is associated with the largest spike of the power spectrum for a given time interval. T1/3, T1/10, and Tmax are the periods related to the corresponding wave height parameters [@RN29849].
-
-Wave direction indicates the direction the peak wave energy is propagating towards [@RN29853]. Direction is reported here relative to True North.
-
-Significant wave height and maximum wave height, their corresponding periods, and wave direction are presented below. A reports summarizing the associated current speed and direction measured the ADCP at this location can be found on the CMAR website. The full wave and current datasets can be downloaded from the Nova Scotia Open Data Portal.
-
-## Quality Control
-
-The ADCP software automatically performs some Quality Control checks during data processing [@RN29850; @RN29849]. For example, observations that are more than 5 standard deviations from the mean are discarded, and three methods for calculating wave height and period are compared.
-
-**re-write this after reviewing all data**
-Additional Quality Control was applied by CMAR during data compilation and formatting for publication using the [`waves`](https://github.com/dempsey-CMAR/waves) R package [@RN29876]. A variation of the "Gross Range" test was applied to the wave period and height parameters. Wave period variables with values ≤ 0 s were flagged as "Fail". When the recorded wave period was ≤ 0 s, the corresponding wave height was almost always 0 m, and the converse was also true (when wave height is 0 m, the period was ≤ 0 s). Wave height parameters were therefore flagged as "Fail" if the wave height was 0 m *and* the period was ≤ 0 s. All other observations were flagged as "Pass". Observations that were flagged "Fail" were not included in the figures below.
 
 ```{r}
 knitr::include_graphics("adcp_report_diagram.png")
@@ -192,10 +198,33 @@ knitr::include_graphics("adcp_report_diagram.png")
 
 Figure `r k`: Schematic representation of ADCP deployment (not to scale).
 
+## Wave Parameters
+
+Wave height is the vertical distance between the peak and trough of a wave [@RN29853]. One of the most common wave height parameters is the significant wave height, which is four times the square root of the zeroth-order moment of the wave spectrum [@RN29853]. This roughly corresponds to the average height of the largest one-third of waves in the sampling interval [@RN29853].
+
+Wave period is the time between consecutive waves. The peak wave period is associated with the largest spike of the power spectrum for a given time interval [@RN29849]. Wave direction indicates the direction the peak wave energy is propagating towards [@RN29853]. Direction is reported here relative to True North.
+
+Significant wave height, peak period, and wave direction figures are presented below. The ADCP software also calculates the current speed and direction from three near-surface bins as well as the sensor depth below the surface. These variables are presented to provide additional context for the wave data.
+
+Note that the zero-up crossing wave variables (average height of the largest one-third and one-tenth of waves, maximum wave height, and their corresponding periods) are not presented here. These variables are more reliably recorded with a 5-beam ADCP, rather than the 4-beam ADCPs used by NSDFA and CMAR. Only wave variables derived from the power spectrum are presented.
+
+In addition to wave variables detailed in this report, the ADCP also measured current speed and direction throughout the water column. A report summarizing the full current speed and direction data at this location can be found on the [CMAR website](https://cmar.ca/reports/). The corresponding wave and current datasets can be accessed through CMAR's [Station Location Map](https://cmar.ca/coastal-monitoring-program/) or directly from the [Nova Scotia Open Data Portal](https://data.novascotia.ca/browse?q=centre%20for%20marine%20applied%20research&sortBy=relevance).
+
+## Quality Control
+
+The ADCP software automatically performs some Quality Control checks during data processing [@RN29850; @RN29849]. For example, observations that are more than 5 standard deviations from the mean are discarded, and three methods for calculating wave height and period are compared.
+
+Additional Quality Control was applied by CMAR using the [waves](https://github.com/dempsey-CMAR/waves) R package [@RN29876]. Automated Quality Control tests were applied to identify outlying and unexpected observations. For consistency with the CMAR Water Quality data, which follows Quality Assurance/Quality Control of Real-Time Oceanographic Data (QARTOD) guidance, each data point was assigned a flag of “Pass”, “Fail”, “Suspect/Of Interest”, or “Not Evaluated” [@RN25922]. These automated flags were reviewed by human experts, and modified where necessary (e.g., upgrading “Suspect/Of Interest” flags to "Fail" if there were known issues with the deployment). 
+
+Observations flagged as “Pass” passed all tests and were included in the figures below. Observations flagged as “Suspect/Of Interest” or “Not Evaluated” were reviewed by human and experts and typically included. Observations that failed any test were considered poor quality and excluded from the figures.
+
+For more technical details about the Quality Control tests, visit the CMAR [Data Governance website](https://dempsey-cmar.github.io/cmp-data-governance/pages/cmp_about.html).
+
+
 \newpage
 # `r depl_id` Wave Data
 
-Table 1: Deployment details for `r depl_id`
+Table 1: `r depl_id` deployment details.
 
 ```{r}
 metadata %>% 
@@ -203,101 +232,201 @@ metadata %>%
   wv_format_report_table()
 ```
 
-```{r, fig.height=3.5}
-# dat_long %>% 
-#   select(timestamp_utc, value = sensor_depth_below_surface_m) %>% 
-#   mutate(variable = "sensor_depth_below_surface_m") %>% 
-#   wv_plot_ts(pal = )
+
+```{r, quality-control}
+wave_vars <- c("significant_height_m", "peak_period_s", "to_direction_degree")
+
+current_vars <- c("sea_water_speed_m_s", "sea_water_to_direction_degree")
+```
+
+## Wave Variables
+
+### Time Series
+```{r, fig.height=6.5}
+k = k + 1
+
+dat %>% 
+  filter(variable %in% wave_vars) %>% 
+  wv_plot_ts(scales = "free_y")
+```
+Figure `r k`: Wave variables over time.
+
+
+### Frequency
+```{r, fig.height=6.5, warning=FALSE, message=FALSE}
+k = k + 1
+
+p1 <- dat %>% 
+  filter(variable == "significant_height_m") %>% 
+  wv_plot_histogram(
+    binwidth = wv_get_bin_width( "significant_height_m"), 
+    pal = brewer.pal(3, "Dark2")[2]
+  ) +
+  scale_x_continuous("Significant Height (m)") +
+  theme(strip.text = element_blank())
+#p1
+
+p2 <- dat %>% 
+  filter(variable == "peak_period_s") %>% 
+  wv_plot_histogram(
+    binwidth = wv_get_bin_width("peak_period_s"), 
+    pal = brewer.pal(3, "Dark2")[1]
+  ) +
+  scale_x_continuous("Peak Period (s)") +
+  theme(strip.text = element_blank())
+
+#p2
+
+p3 <- dat %>% 
+  filter(variable == "to_direction_degree") %>% 
+  wv_plot_histogram(
+    binwidth = wv_get_bin_width("to_direction_degree"), 
+    pal = brewer.pal(3, "Dark2")[3]
+  ) +
+  scale_x_continuous("Wave Direction (degree)") +
+  theme(strip.text = element_blank())
+
+#p3
+
+ggarrange(p1, p2, p3, ncol = 1)
+
+```
+Figure `r k`: Histogram of wave variable observations. Top: significant wave height (bin width = 0.1 m); Middle: peak period (bin width = 2 seconds); Bottom: direction the wave is travelling to (bin width = 20 degrees).
+
+### Wave Rose
+
+```{r, fig.height=3.25}
+k <- k + 1
+
+dat_wide <- dat %>% 
+  pivot_wider(names_from = "variable", values_from = "value") %>% 
+  select(-contains("flag"))
+
+breaks_wv <- seq(
+  0, round(max(dat_wide$significant_height_m, na.rm = TRUE)), by = 0.25
+) 
+colors_wv <- brewer.pal(length(breaks_wv), "Oranges")
+ints_wv <- adcp_count_obs(dat_wide, significant_height_m, n_ints = length(breaks_wv)
+)
+dir_label_wv <- round(max(ints_wv$prop))
+
+p <- adcp_plot_current_rose(
+  dat_wide, 
+  breaks = breaks_wv, 
+  speed_column = significant_height_m,
+  direction_column = to_direction_degree,
+  speed_colors = colors_wv,
+  speed_label = "Wave Height (m)"
+)
+
+p <- p$plot +
+  latticeExtra::layer(
+    lattice::ltext(0, dir_label_wv, "N", cex = 0.75, col = "darkgrey")
+  ) +
+  latticeExtra::layer(
+    lattice::ltext(dir_label_wv, 0, "E", cex = 0.75, col = "darkgrey")
+  ) +
+  latticeExtra::layer(
+    lattice::ltext(-dir_label_wv, 0, "W", cex = 0.75, col = "darkgrey")
+  ) +
+  latticeExtra::layer(
+    lattice::ltext(0, -dir_label_wv, "S", cex = 0.75, col = "darkgrey")
+  )
+
+p
+ # openair::windRose(
+ #    dat_wave,
+ #    ws = "significant_height_m", wd = "to_direction_degree",
+ #   breaks = breaks_wv,
+ #    #cols = speed_cols,
+ #    paddle = FALSE,
+ #    auto.text = FALSE,
+ #    annotate = FALSE,
+ #    #key.header = speed_label,
+ #    key.footer = "",
+ #    key.position = "right"
+ #  )
+
+
+```
+Figure `r k`: Wave height and the direction the wave is travelling to.
+
+\newpage
+## Current
+
+```{r, fig.height=3.25}
 cat('\n')
 
 k <- k + 1
-adcp_plot_depth(dat, geom = "line")
+
+dat_wide <- dat_wide %>% 
+ # pivot_wider(names_from = "variable", values_from = "value") %>% 
+  mutate(sea_water_speed_cm_s = sea_water_speed_m_s * 100) %>% 
+  select(-sea_water_speed_m_s)
+
+n_ints <- 12
+colors_curr <- viridis(n_ints, option = "F", direction = -1)
+ints_curr <- adcp_count_obs(dat_wide, sea_water_speed_cm_s)
+
+breaks_curr <- c(ints_curr$lower, max(ints_curr$upper)) # NOT a mistake that using max(upper)
+dir_label_curr <- round(max(ints_curr$prop))
+
+p_curr <- adcp_plot_current_rose(
+  dat_wide, 
+  breaks = breaks_curr, 
+  speed_column = sea_water_speed_cm_s,
+  direction_column = sea_water_to_direction_degree,
+  speed_colors = colors_curr
+)
+
+p_curr <- p_curr$plot +
+  latticeExtra::layer(
+    lattice::ltext(0, dir_label_curr, "N", cex = 0.75, col = "darkgrey")
+  ) +
+  latticeExtra::layer(
+    lattice::ltext(dir_label_curr, 0, "E", cex = 0.75, col = "darkgrey")
+  ) +
+  latticeExtra::layer(
+    lattice::ltext(-dir_label_curr, 0, "W", cex = 0.75, col = "darkgrey")
+  ) +
+  latticeExtra::layer(
+    lattice::ltext(0, -dir_label_curr, "S", cex = 0.75, col = "darkgrey")
+  )
+
+p_curr
+```
+
+```{r, fig.height=2.75}
+adcp_plot_speed_hist(ints_curr, bar_cols = colors_curr)
+```
+
+Figure `r k`: Current speed and direction for three near-surface bins. Top: Current rose (North is up). Bottom: Current speed distribution. The number of observations is noted above each bar.
+
+## Depth
+
+```{r, fig.height=2.75}
+
+cat('\n')
+
+k <- k + 1
+
+dat_wide %>% 
+  adcp_plot_depth(geom = "line")
 ```
 Figure `r k`: ADCP sensor depth below the surface over time.
 
+#	Data Acknowledgement 
 
-\newpage
+CMAR aims to prioritize data collection and processing efforts that best serve coastal stakeholders. If you use this Coastal Monitoring Program Water Quality data in a project or for decision making, please complete our [anonymous questionnaire](https://docs.google.com/forms/d/1RmHN1vDaM0dXqKFKy8V-traIoubdw1pqMDKVtPmWDHc/edit) with your feedback. Please cite the report and/or datasets used.
+<br>
 
-```{r, quality-control}
-vars <- colnames(dat) %>% 
-  data.frame(vars = .) %>% 
-  filter(
-    str_detect(vars, "height|period|direction"),
-    !str_detect(vars, "grossrange|sea_water")
-  ) 
-vars <- vars$vars
+# Document History
 
-dat_long <- dat %>% 
-  wv_pivot_vars_longer(vars = vars) %>% 
-  wv_pivot_flags_longer() %>% 
-  filter(grossrange_flag_value == 1)
-
-height_vars <- dat_long %>% 
-  filter(
-    variable == "significant_height_m" |
-      variable == "average_height_largest_10_percent_m"
-  ) 
-
-period_vars <- dat_long %>% 
-  filter(
-    variable == "peak_period_s" | 
-      variable == "period_largest_10_percent_s"
-  ) 
+```{r, doc-history}
+adcp_format_report_table(hist, transpose = FALSE)
 ```
-
-## Wave Height
-
-### Time Series
-```{r}
-k = k + 1
-
-wv_plot_ts(height_vars)
-```
-Figure `r k`: Significant wave height and average height of largest 10 % of waves.
-
-### Frequency
-```{r}
-k = k + 1
-
-bin_width <- 0.1
-wv_plot_histogram(height_vars, binwidth = bin_width)
-```
-Figure `r k`: Histogram of Significant wave height and average height of largest 10 % of waves. Bin width is `r bin_width` m.
-
-
-## Wave Period
-
-### Time Series
-```{r}
-k = k + 1
-
-wv_plot_ts(period_vars, scales = "free_y")
-```
-Figure `r k`: Peak period and period associated with the largest 10 % of waves.
-
-### Frequency
-```{r}
-k = k + 1
-
-bin_width <- 2
-wv_plot_histogram(period_vars, binwidth = bin_width, scales = "free_x")
-```
-Figure `r k`: Histogram of peak period and period associated with the largest 10 % of waves. Bin width is `r bin_width` m.
-
-## Wave Direction
-
-```{r}
-k = k + 1
-
-wv_plot_height_rose(dat_long)
-```
-Figure `r k`: Frequency of observations by peak wave direction, colored by significant wave height.
-
 
 # References
-
-`r knitr::knit_exit()`
-
 
 
 
