@@ -127,7 +127,8 @@ qc_summary <- depl_dat %>%
   arrange(qc_test, variable)
 
 depl_out <- depl_dat %>% 
-  filter(trim_obs != 4)
+  filter(trim_obs != 4) %>% 
+  select(-trim_obs)
 
 qc_tests <- c("grossrange", "rolling_sd", "spike", "qc")
 
