@@ -5,8 +5,8 @@ output:
     toc: true
     toc_depth: 3
 params: 
-  county: county 
-  doc.hist: doc.hist
+  depl_id: depl_id 
+  doc_hist: doc_hist
 editor_options: 
   chunk_output_type: console
 bibliography: wave_references.bib
@@ -43,13 +43,39 @@ library(viridis)
 
 theme_set(theme_light())
 
+param_depl_id <- params$depl_id
+
+link <- "https://docs.google.com/spreadsheets/d/1DVfJbraoWL-BW8-Aiypz8GZh1sDS6-HtYCSrnOSW07U/edit#gid=0"
+
+gs4_deauth()
+depl_info <- googlesheets4::read_sheet(link, sheet = "Wave Tracking") %>%
+  filter(depl_id == param_depl_id)
+
+station <- depl_info$station
+depl_date <- depl_info$depl_date
+
+doc_hist <- params$doc_hist
+
 ```
 
 
 ```{r, message=FALSE}
+# path to deployment data on R Drive
+path_r <- file.path("R:/data_branches/wave/processed_data/deployment_data/")
 
-# update this be be a param
-dat_raw <- readRDS("R:/data_branches/wave/processed_data/deployment_data/halifax/2009-12-08_Owls_Head_HL002.RDS") 
+# path from deployment folder to depl of interest
+depl_path <- paste(
+ depl_date, 
+  station, 
+  param_depl_id, sep = "_"
+) %>% 
+  str_replace_all(" ", "_")
+
+path <- paste0(paste(path_r, county, depl_path, sep = "/"), ".rds")
+
+# dat_raw <- readRDS("R:/data_branches/wave/processed_data/deployment_data/halifax/2009-12-08_Owls_Head_HL002.RDS") 
+
+dat_raw <- readRDS(path)
 
 dat <- dat_raw %>% 
   wv_assign_short_variable_names() %>% 
@@ -60,12 +86,6 @@ dat <- dat_raw %>%
   ) %>% 
   wv_pivot_flags_longer() %>% 
   filter(qc_flag_value < 4)
-
-link <- "https://docs.google.com/spreadsheets/d/1DVfJbraoWL-BW8-Aiypz8GZh1sDS6-HtYCSrnOSW07U/edit#gid=0"
-
-gs4_deauth()
-depl_info <- googlesheets4::read_sheet(link, sheet = "Wave Tracking") %>%
-  filter(depl_id == unique(dat$deployment_id))
 
 # path to most recent NSDFA tracking sheet -- update this
 path_nsdfa <- file.path(
@@ -87,11 +107,6 @@ k = 1 # counter for figure number
 text_size <- 3.5
 crs <- 4326
 
-# document history
-hist <- read_excel("R:/tracking_sheets/wave_report_tracker.xlsx") %>% 
-  filter(Depl_ID == depl_id) %>% 
-  mutate(Date = as.character(Date)) %>% 
-  select(Version, Date, Amendments)
 ```
 
 ```{r, warning=FALSE}
@@ -180,15 +195,15 @@ ggplot() +
 
 ```
 `r cat('\n')`
-Figure `r k`: Location of Acoustic Current Doppler Profiler deployed in `r depl_info$waterbody` in `r year_utc`.
+Figure `r k`: Location of Acoustic Current Doppler Profiler deployed at the `r station` station in `r depl_info$waterbody` in `r year_utc`.
 
 `r k <- k + 1`
 
 ## Data Collection 
 
-CMAR collects wave data using upward facing ADCPs that are mounted on the sea floor for 1 - 3 months (Figure `r k`). An ADCP uses sound to measure current speed and direction through the water column. ADCP software uses many measurements recorded over a given time interval to calculate key sea state parameters, including wave height, period, and direction [@RN29853]. 
+NSDFA collects wave data using upward facing ADCPs that are mounted on the sea floor for 1 - 3 months (Figure `r k`). An ADCP uses sound to measure current speed and direction through the water column. ADCP software uses many measurements recorded over a given time interval to calculate key sea state parameters, including wave height, period, and direction [@RN29853]. 
 
-CMAR uses several ADCP instrument models, including the Sentinel V20, Sentinel V50, Sentinel V100, and Workhorse Sentinel 600kHz. The data is processed using Velocity and WavesMon4 Software [@RN29849]. The data are compiled, formatted, and visualized for publication with  CMAR's [`waves`](https://github.com/dempsey-CMAR/waves) R package [@RN29876]. 
+NSDFA uses several ADCP instrument models, including the Sentinel V20, Sentinel V50, Sentinel V100, and Workhorse Sentinel 600kHz. NSDFA processes the data using Velocity and WavesMon4 Software [@RN29849], and sends the output to CMAR. CMAR compiles and formats the data for publication with the [waves](https://github.com/dempsey-CMAR/waves) R package [@RN29876]. 
 
 For an overview of "Waves Basics" and the wave calculations made by the Velocity and WavesMon software, refer to @RN29850. For more details on the instruments and software, refer to @RN29853 and @RN29849. 
 
@@ -208,7 +223,7 @@ Significant wave height, peak period, and wave direction figures are presented b
 
 Note that the zero-up crossing wave variables (average height of the largest one-third and one-tenth of waves, maximum wave height, and their corresponding periods) are not presented here. These variables are more reliably recorded with a 5-beam ADCP, rather than the 4-beam ADCPs used by NSDFA and CMAR. Only wave variables derived from the power spectrum are presented.
 
-In addition to wave variables detailed in this report, the ADCP also measured current speed and direction throughout the water column. A report summarizing the full current speed and direction data at this location can be found on the [CMAR website](https://cmar.ca/reports/). The corresponding wave and current datasets can be accessed through CMAR's [Station Location Map](https://cmar.ca/coastal-monitoring-program/) or directly from the [Nova Scotia Open Data Portal](https://data.novascotia.ca/browse?q=centre%20for%20marine%20applied%20research&sortBy=relevance).
+In addition to wave variables detailed in this report, the ADCP also measured current speed and direction throughout the water column. A report summarizing the full current speed and direction data at this location can be found on the [CMAR website](https://cmar.ca/reports/). The corresponding Wave and Current datasets can be accessed through CMAR's [Station Location Map](https://cmar.ca/coastal-monitoring-program/) or directly from the [Nova Scotia Open Data Portal](https://data.novascotia.ca/browse?q=centre%20for%20marine%20applied%20research&sortBy=relevance).
 
 ## Quality Control
 
@@ -229,7 +244,7 @@ Table 1: `r depl_id` deployment details.
 ```{r}
 metadata %>% 
   wv_write_report_table() %>% 
-  wv_format_report_table()
+  wv_format_report_table() 
 ```
 
 
@@ -256,21 +271,23 @@ Figure `r k`: Wave variables over time.
 ```{r, fig.height=6.5, warning=FALSE, message=FALSE}
 k = k + 1
 
+pal <- c("#063E4D", "#62AECA", "#FFD118")
+
 p1 <- dat %>% 
   filter(variable == "significant_height_m") %>% 
   wv_plot_histogram(
     binwidth = wv_get_bin_width( "significant_height_m"), 
-    pal = brewer.pal(3, "Dark2")[2]
+    pal = pal[1]
   ) +
-  scale_x_continuous("Significant Height (m)") +
+  scale_x_continuous("Wave Height (m)") +
   theme(strip.text = element_blank())
 #p1
 
 p2 <- dat %>% 
   filter(variable == "peak_period_s") %>% 
   wv_plot_histogram(
-    binwidth = wv_get_bin_width("peak_period_s"), 
-    pal = brewer.pal(3, "Dark2")[1]
+    binwidth = wv_get_bin_width("peak_period_s"),
+    pal = pal[2]
   ) +
   scale_x_continuous("Peak Period (s)") +
   theme(strip.text = element_blank())
@@ -280,8 +297,8 @@ p2 <- dat %>%
 p3 <- dat %>% 
   filter(variable == "to_direction_degree") %>% 
   wv_plot_histogram(
-    binwidth = wv_get_bin_width("to_direction_degree"), 
-    pal = brewer.pal(3, "Dark2")[3]
+    binwidth = wv_get_bin_width("to_direction_degree"),
+    pal = pal[3]
   ) +
   scale_x_continuous("Wave Direction (degree)") +
   theme(strip.text = element_blank())
@@ -295,8 +312,10 @@ Figure `r k`: Histogram of wave variable observations. Top: significant wave hei
 
 ### Wave Rose
 
-```{r, fig.height=3.25}
+```{r, fig.height=3.25, warning=FALSE, message=FALSE}
 k <- k + 1
+
+get_wv_rose_cols <- colorRampPalette(c("#c7dfe7", "#063E4D"))
 
 dat_wide <- dat %>% 
   pivot_wider(names_from = "variable", values_from = "value") %>% 
@@ -305,7 +324,9 @@ dat_wide <- dat %>%
 breaks_wv <- seq(
   0, round(max(dat_wide$significant_height_m, na.rm = TRUE)), by = 0.25
 ) 
-colors_wv <- brewer.pal(length(breaks_wv), "Oranges")
+
+colors_wv <- get_wv_rose_cols(length(breaks_wv))
+
 ints_wv <- adcp_count_obs(dat_wide, significant_height_m, n_ints = length(breaks_wv)
 )
 dir_label_wv <- round(max(ints_wv$prop))
@@ -319,37 +340,9 @@ p <- adcp_plot_current_rose(
   speed_label = "Wave Height (m)"
 )
 
-p <- p$plot +
-  latticeExtra::layer(
-    lattice::ltext(0, dir_label_wv, "N", cex = 0.75, col = "darkgrey")
-  ) +
-  latticeExtra::layer(
-    lattice::ltext(dir_label_wv, 0, "E", cex = 0.75, col = "darkgrey")
-  ) +
-  latticeExtra::layer(
-    lattice::ltext(-dir_label_wv, 0, "W", cex = 0.75, col = "darkgrey")
-  ) +
-  latticeExtra::layer(
-    lattice::ltext(0, -dir_label_wv, "S", cex = 0.75, col = "darkgrey")
-  )
-
 p
- # openair::windRose(
- #    dat_wave,
- #    ws = "significant_height_m", wd = "to_direction_degree",
- #   breaks = breaks_wv,
- #    #cols = speed_cols,
- #    paddle = FALSE,
- #    auto.text = FALSE,
- #    annotate = FALSE,
- #    #key.header = speed_label,
- #    key.footer = "",
- #    key.position = "right"
- #  )
-
-
 ```
-Figure `r k`: Wave height and the direction the wave is travelling to.
+Figure `r k`: Wave height and the direction the wave is travelling to (relative to True North).
 
 \newpage
 ## Current
@@ -359,8 +352,12 @@ cat('\n')
 
 k <- k + 1
 
+#get_curr_cols <- colorRampPalette(c("#E8E8E8", "#3A9DCA", "#104862"))
+# get_curr_cols <-  colorRampPalette(c("#D1D1D1", "#2972BA", "#112F4D"))
+# 
+# get_curr_cols <- colorRampPalette(c("#c7dfe7", "#063E4D"))
+#  
 dat_wide <- dat_wide %>% 
- # pivot_wider(names_from = "variable", values_from = "value") %>% 
   mutate(sea_water_speed_cm_s = sea_water_speed_m_s * 100) %>% 
   select(-sea_water_speed_m_s)
 
@@ -379,32 +376,18 @@ p_curr <- adcp_plot_current_rose(
   speed_colors = colors_curr
 )
 
-p_curr <- p_curr$plot +
-  latticeExtra::layer(
-    lattice::ltext(0, dir_label_curr, "N", cex = 0.75, col = "darkgrey")
-  ) +
-  latticeExtra::layer(
-    lattice::ltext(dir_label_curr, 0, "E", cex = 0.75, col = "darkgrey")
-  ) +
-  latticeExtra::layer(
-    lattice::ltext(-dir_label_curr, 0, "W", cex = 0.75, col = "darkgrey")
-  ) +
-  latticeExtra::layer(
-    lattice::ltext(0, -dir_label_curr, "S", cex = 0.75, col = "darkgrey")
-  )
-
 p_curr
 ```
 
-```{r, fig.height=2.75}
+```{r, fig.height=2.6}
 adcp_plot_speed_hist(ints_curr, bar_cols = colors_curr)
 ```
 
-Figure `r k`: Current speed and direction for three near-surface bins. Top: Current rose (North is up). Bottom: Current speed distribution. The number of observations is noted above each bar.
+Figure `r k`: Current speed and direction for three near-surface bins. Top: Current speed and the direction the current is travelling to (relative to True North). Bottom: Current speed distribution. The number of observations is noted above each bar.
 
 ## Depth
 
-```{r, fig.height=2.75}
+```{r, fig.height=2.6}
 
 cat('\n')
 
@@ -423,7 +406,9 @@ CMAR aims to prioritize data collection and processing efforts that best serve c
 # Document History
 
 ```{r, doc-history}
-adcp_format_report_table(hist, transpose = FALSE)
+doc_hist %>%
+  select(-contains("Depl_ID")) %>%
+  wv_format_report_table(transpose = FALSE) 
 ```
 
 # References
