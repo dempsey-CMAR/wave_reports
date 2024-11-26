@@ -164,7 +164,7 @@ ggplot() +
   )
 ```
 `r cat('\n')`
-Figure `r k`: `r county` County (green).
+**Figure `r k`:** `r county` County (green).
 
 ```{r, warning=FALSE, strip.white=TRUE}
 k <- k + 1
@@ -195,7 +195,7 @@ ggplot() +
 
 ```
 `r cat('\n')`
-Figure `r k`: Location of Acoustic Current Doppler Profiler deployed at the `r station` station in `r depl_info$waterbody` in `r year_utc`.
+**Figure `r k`:** Location of Acoustic Current Doppler Profiler deployed at the `r station` station in `r depl_info$waterbody` in `r year_utc`.
 
 `r k <- k + 1`
 
@@ -211,7 +211,7 @@ For an overview of "Waves Basics" and the wave calculations made by the Velocity
 knitr::include_graphics("adcp_report_diagram.png")
 ```
 
-Figure `r k`: Schematic representation of ADCP deployment (not to scale).
+**Figure `r k`:** Schematic representation of ADCP deployment (not to scale).
 
 ## Wave Parameters
 
@@ -239,19 +239,12 @@ For more technical details about the Quality Control tests, visit the CMAR [Data
 \newpage
 # `r depl_id` Wave Data
 
-Table 1: `r depl_id` deployment details.
+**Table 1:** `r depl_id` deployment details.
 
 ```{r}
 metadata %>% 
   wv_write_report_table() %>% 
   wv_format_report_table() 
-```
-
-
-```{r, quality-control}
-wave_vars <- c("significant_height_m", "peak_period_s", "to_direction_degree")
-
-current_vars <- c("sea_water_speed_m_s", "sea_water_to_direction_degree")
 ```
 
 ## Wave Variables
@@ -261,10 +254,13 @@ current_vars <- c("sea_water_speed_m_s", "sea_water_to_direction_degree")
 k = k + 1
 
 dat %>% 
-  filter(variable %in% wave_vars) %>% 
+  filter(
+    variable %in% 
+      c("significant_height_m", "peak_period_s", "to_direction_degree")
+  ) %>% 
   wv_plot_ts(scales = "free_y")
 ```
-Figure `r k`: Wave variables over time.
+**Figure `r k`:** Wave variables over time.
 
 
 ### Frequency
@@ -308,7 +304,7 @@ p3 <- dat %>%
 ggarrange(p1, p2, p3, ncol = 1)
 
 ```
-Figure `r k`: Histogram of wave variable observations. Top: significant wave height (bin width = 0.1 m); Middle: peak period (bin width = 2 seconds); Bottom: direction the wave is travelling to (bin width = 20 degrees).
+**Figure `r k`:** Histogram of wave variable observations. Top: significant wave height (bin width = 0.1 m); Middle: peak period (bin width = 2 seconds); Bottom: direction the wave is travelling to (bin width = 20 degrees).
 
 ### Wave Rose
 
@@ -318,14 +314,30 @@ k <- k + 1
 get_wv_rose_cols <- colorRampPalette(c("#c7dfe7", "#063E4D"))
 
 dat_wide <- dat %>% 
-  pivot_wider(names_from = "variable", values_from = "value") %>% 
-  select(-contains("flag"))
+  select(-contains("flag")) %>% # do this before pivoting or extra rows will be added
+  pivot_wider(names_from = "variable", values_from = "value") 
 
-breaks_wv <- seq(
-  0, round(max(dat_wide$significant_height_m, na.rm = TRUE)), by = 0.25
-) 
+max_height_wv <- max(dat_wide$significant_height_m, na.rm = TRUE)
 
-colors_wv <- get_wv_rose_cols(length(breaks_wv))
+#if(depl_id %in% c("IV001", "IV004", "IV008", "IV009", "GY001")) {
+# if(max_height_wv < 0.5) {
+#   max_height_wv <- round(max_height_wv, digits = 1)
+# } else max_height_wv <- ceiling(max_height_wv)
+
+if(max_height_wv <= 0.5) {
+  #max_height_wv <- 0.5
+  max_height_wv <- round(max_height_wv, digits = 1)
+} else max_height_wv <- ceiling(max_height_wv)
+
+if(max_height_wv <= 0.5) {
+  inc_wv <- 0.10
+} else if(max_height_wv <= 1.5) {
+  inc_wv <- 0.25
+} else inc_wv <- 0.5
+
+breaks_wv <- seq(0, max_height_wv, by = inc_wv) 
+
+colors_wv <- get_wv_rose_cols(length(breaks_wv) - 1)
 
 ints_wv <- adcp_count_obs(dat_wide, significant_height_m, n_ints = length(breaks_wv)
 )
@@ -342,21 +354,16 @@ p <- adcp_plot_current_rose(
 
 p
 ```
-Figure `r k`: Wave height and the direction the wave is travelling to (relative to True North).
+**Figure `r k`:** Wave height and the direction the wave is travelling to (relative to True North).
 
 \newpage
 ## Current
 
-```{r, fig.height=3.25}
+```{r, fig.height=3.25, message=FALSE}
 cat('\n')
 
 k <- k + 1
 
-#get_curr_cols <- colorRampPalette(c("#E8E8E8", "#3A9DCA", "#104862"))
-# get_curr_cols <-  colorRampPalette(c("#D1D1D1", "#2972BA", "#112F4D"))
-# 
-# get_curr_cols <- colorRampPalette(c("#c7dfe7", "#063E4D"))
-#  
 dat_wide <- dat_wide %>% 
   mutate(sea_water_speed_cm_s = sea_water_speed_m_s * 100) %>% 
   select(-sea_water_speed_m_s)
@@ -383,12 +390,11 @@ p_curr
 adcp_plot_speed_hist(ints_curr, bar_cols = colors_curr)
 ```
 
-Figure `r k`: Current speed and direction for three near-surface bins. Top: Current speed and the direction the current is travelling to (relative to True North). Bottom: Current speed distribution. The number of observations is noted above each bar.
+**Figure `r k`:** Current speed and direction for three near-surface bins. Top: Current speed and the direction the current is travelling to (relative to True North). Bottom: Current speed distribution. The number of observations is noted above each bar.
 
 ## Depth
 
 ```{r, fig.height=2.6}
-
 cat('\n')
 
 k <- k + 1
@@ -396,7 +402,7 @@ k <- k + 1
 dat_wide %>% 
   adcp_plot_depth(geom = "line")
 ```
-Figure `r k`: ADCP sensor depth below the surface over time.
+**Figure `r k`:** ADCP sensor depth below the surface over time.
 
 #	Data Acknowledgement 
 
