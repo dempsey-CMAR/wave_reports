@@ -71,7 +71,7 @@ depl_date <- depl_tracking$depl_date
 # path to data export
 path_export <- file.path("R:/data_branches/wave/processed_data/deployment_data")
 
-file_name <- str_replace(
+file_name <- str_replace_all(
   paste(
     depl_info$depl_date, 
     depl_info$station, 
@@ -93,26 +93,31 @@ if (county == "Digby") {
 } else depth_threshold <- 1
 
 # format & flag data
-# ***assign flag of 4 to all of pictou depl??
 depl_dat <- depl_file %>%
   wv_read_txt() %>%
   wv_assign_cf_variable_names() %>%
   wv_assign_short_variable_names() %>% 
+  wv_start_end_obs_to_trim(depth_threshold = depth_threshold) 
+# break pipe so can plot sensor depth and see which obs were flagged at the beginning
+
+depl_out <- depl_dat %>% 
+  # filter these out NOW, otherwise some GOOD depth obs get flagged by spike test
+  filter(trim_obs != 4) %>% 
+  select(-trim_obs) %>% 
   wv_add_opendata_cols(metadata = depl_tracking) %>% 
   wv_test_all(county = county, max_interval_hours = max_interval_hours) %>%
   wv_assign_max_flag() %>% 
-  wv_append_long_variable_names() %>% 
-  wv_start_end_obs_to_trim(depth_threshold = depth_threshold) 
-
+  wv_append_long_variable_names() 
+ 
 if(depl_id == "QN005") {
-  depl_dat <- depl_dat %>% 
+   depl_out  <-  depl_out  %>% 
     mutate(
       trim_obs = if_else(row_number() == 1, ordered(4, levels = 1:4), trim_obs)
     )
 }
 
 # summarise flags
-qc_summary <- depl_dat %>% 
+qc_summary <-  depl_out %>% 
   # pivot function doesn't work with long var names!!
   wv_assign_short_variable_names() %>% 
   wv_pivot_flags_longer() %>% 
@@ -125,10 +130,6 @@ qc_summary <- depl_dat %>%
   ) %>% 
   select(deployment_id, county, station, deployment_date, everything()) %>% 
   arrange(qc_test, variable)
-
-depl_out <- depl_dat %>% 
-  filter(trim_obs != 4) %>% 
-  select(-trim_obs)
 
 qc_tests <- c("grossrange", "rolling_sd", "spike", "qc")
 
