@@ -221,7 +221,7 @@ Wave period is the time between consecutive waves. The peak wave period is assoc
 
 Significant wave height, peak period, and wave direction figures are presented below. The ADCP software also calculates the current speed and direction from three near-surface bins as well as the sensor depth below the surface. These variables are presented to provide additional context for the wave data.
 
-Note that the zero-up crossing wave variables (average height of the largest one-third and one-tenth of waves, maximum wave height, and their corresponding periods) are not presented here. These variables are more reliably recorded with a 5-beam ADCP, rather than the 4-beam ADCPs used by NSDFA and CMAR. Only wave variables derived from the power spectrum are presented.
+Note that only the wave variables derived from the power spectrum are presented here. The variables derived from the zero-up crossing analysis (average height of the largest one-third and one-tenth of waves, maximum wave height, and their corresponding periods) are not included. 
 
 In addition to wave variables detailed in this report, the ADCP also measured current speed and direction throughout the water column. A report summarizing the full current speed and direction data at this location can be found on the [CMAR website](https://cmar.ca/reports/). The corresponding Wave and Current datasets can be accessed through CMAR's [Station Location Map](https://cmar.ca/coastal-monitoring-program/) or directly from the [Nova Scotia Open Data Portal](https://data.novascotia.ca/browse?q=centre%20for%20marine%20applied%20research&sortBy=relevance).
 
@@ -304,7 +304,7 @@ p3 <- dat %>%
 ggarrange(p1, p2, p3, ncol = 1)
 
 ```
-**Figure `r k`:** Histogram of wave variable observations. Top: significant wave height (bin width = 0.1 m); Middle: peak period (bin width = 2 seconds); Bottom: direction the wave is travelling to (bin width = 20 degrees).
+**Figure `r k`:** Histogram of wave variable observations. Top: significant wave height (bin width = 0.1 m); Middle: peak period (bin width = 2 seconds); Bottom: direction the wave is travelling from (bin width = 20 degrees).
 
 ### Wave Rose
 
@@ -354,7 +354,7 @@ p <- adcp_plot_current_rose(
 
 p
 ```
-**Figure `r k`:** Wave height and the direction the wave is travelling to (relative to True North).
+**Figure `r k`:** Wave height and the direction the wave is travelling from (relative to True North).
 
 \newpage
 ## Current
