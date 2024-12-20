@@ -73,9 +73,9 @@ path_export <- file.path("R:/data_branches/wave/processed_data/deployment_data")
 
 file_name <- str_replace_all(
   paste(
-    depl_info$depl_date, 
-    depl_info$station, 
-    depl_tracking$depl_id, sep = "_"
+    depl_date, 
+    station, 
+    depl_id, sep = "_"
   ), " ", "_")
 ```
 
