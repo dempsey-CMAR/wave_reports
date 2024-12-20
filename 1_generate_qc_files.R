@@ -1,6 +1,7 @@
 library(here)
 library(quarto)
 library(rmarkdown)
+library(waves)
 
 ################ update this ################
 path <- file.path("R:/data_branches/wave/raw_data/2024-06-03_process/data/")
@@ -24,7 +25,7 @@ sapply(depls, function(x) {
 
 
 # Single Deployment -------------------------------------------------------
-x <- depls[6]
+x <- depls[11]
 depl_file <- x
 quarto_render(
   input = here("1_compile_and_apply_qc_tests_wave_template.qmd"),

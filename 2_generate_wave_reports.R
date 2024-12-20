@@ -19,11 +19,11 @@ doc_hist <- read_excel(
   mutate(Date = as.character(Date)) %>%
   select(Depl_ID, Version, Date, Amendments)
 
-report <- here("2_wave_report_template2.Rmd")
+report <- here("2_wave_report_template.Rmd")
 
 # SECTION 1: SET UP ---------------------------------------------
 
-county <- "annapolis"
+county <- "halifax"
 
 depls <- list.files(
   paste0("R:/data_branches/wave/processed_data/deployment_data/", county),
@@ -31,7 +31,7 @@ depls <- list.files(
   full.names = TRUE
 ) %>%
   wv_extract_deployment_info2()
-depls <- depls$deployment_id[1]
+depls <- depls$deployment_id
 
 # SECTION 2: GENERATE REPORTS --------------------------------------------------------
 
