@@ -4,4 +4,7 @@
 .Ruserdata
 
 archive/
+data/
+report_elements/
 *.html
+*.docx
