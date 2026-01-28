@@ -20,7 +20,7 @@ library(sensorstrings)
 
 # SECTION 1: Define counties and submission date --------------------------
 
-county <- "halifax"
+county <- "inverness"
 file_date <- as.character(Sys.Date())
 
 path <- file.path("R:/data_branches/wave")
@@ -52,15 +52,15 @@ dat_raw <- list.files(
 keep_cols <- c(
   "waterbody", "station", "deployment_id", "timestamp_utc",
   "sea_surface_wave_significant_height_m",
-  "sea_surface_wave_peak_period_s", "sea_surface_wave_to_direction_degree",
+  "sea_surface_wave_peak_period_s", "sea_surface_wave_from_direction_degree",
   "sea_water_speed_m_s", "sea_water_to_direction_degree",
   "sensor_depth_below_surface_m",
-  "qc_flag_sea_surface_wave_significant_height_m",
-  "qc_flag_sea_surface_wave_peak_period_s",
-  "qc_flag_sea_surface_wave_to_direction_degree",
-  "qc_flag_sea_water_speed_m_s",
-  "qc_flag_sea_water_to_direction_degree",
-  "qc_flag_sensor_depth_below_surface_m"
+  "grossrange_flag_sea_surface_wave_significant_height_m",
+  "grossrange_flag_sea_surface_wave_peak_period_s",
+  "grossrange_flag_sea_surface_wave_from_direction_degree",
+  "grossrange_flag_sea_water_speed_m_s",
+  "grossrange_flag_sea_water_to_direction_degree",
+  "grossrange_flag_sensor_depth_below_surface_m"
 )
 
 dat_raw %>%
