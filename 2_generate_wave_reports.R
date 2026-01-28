@@ -1,4 +1,4 @@
-# This script generates reports for all deployments in xxx
+# This script generates reports for all deployments in xxx county
 
 # SECTION 1: Read in document history and report files
 
@@ -13,17 +13,9 @@ library(here)
 library(readxl)
 library(waves)
 
-doc_hist <- read_excel(
-  "R:/tracking_sheets/wave_report_tracker.xlsx", sheet = "Tracking"
-) %>%
-  mutate(Date = as.character(Date)) %>%
-  select(Depl_ID, Version, Date, Amendments)
-
-report <- here("2_wave_report_template.Rmd")
-
 # SECTION 1: SET UP ---------------------------------------------
 
-county <- "halifax"
+county <- "yarmouth"
 
 depls <- list.files(
   paste0("R:/data_branches/wave/processed_data/deployment_data/", county),
@@ -31,18 +23,36 @@ depls <- list.files(
   full.names = TRUE
 ) %>%
   wv_extract_deployment_info2()
-depls <- depls$deployment_id
+#depls <- depls$deployment_id
+
+
+file_name <- paste(
+  depls$deployment_id,
+  gsub(pattern = " ", "_", depls$station),
+  depls$depl_date,
+  "wave_report.pdf", sep = "_"
+)
+
+hist <- read_excel(
+  "R:/tracking_sheets/wave_report_tracker.xlsx", sheet = "Tracking"
+) %>%
+  filter(Depl_ID %in% depls$deployment_id)
 
 # SECTION 2: GENERATE REPORTS --------------------------------------------------------
 
-sapply(depls, function(x) {
+report <- here("2_wave_report_template.qmd")
 
-  rmarkdown::render(
+sapply(depls$deployment_id, function(x) {
+
+  quarto::quarto_render(
     input = report,
-    output_file = paste0(x, "_wave_report.docx"),
-    params = list(
+    output_file = file_name[grep(x, file_name)],
+    execute_params = list(
       depl_id = x,
-      doc_hist = filter(doc_hist, Depl_ID == x))
+      doc_version = filter(hist, Depl_ID == x)$Version,
+      doc_date = as.character(filter(hist, Depl_ID == x)$Date),
+      doc_notes = filter(hist, Depl_ID == x)$Amendments
+    )
   )
 })
 
