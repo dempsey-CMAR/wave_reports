@@ -13,6 +13,7 @@ params:
 ```{r, set-up, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE, dpi = 600, fig.width = 8)
 
+library(adcp)
 library(data.table)
 library(dplyr)
 library(DT)
@@ -26,7 +27,6 @@ library(waves)
 
 source(here("functions/subchunkify.R"))
 
-#depl_file <- "R:/data_branches/wave/raw_data/2024-06-03_process/data/2010.10.29 - Jordan Bay - Waves.txt"
 depl_file <- params$depl_file
 
 dt_options1 <- list(
@@ -49,24 +49,20 @@ dt_options2 <- list(
 )
 
 # ADCP TRACKING
-link <- "https://docs.google.com/spreadsheets/d/1DVfJbraoWL-BW8-Aiypz8GZh1sDS6-HtYCSrnOSW07U/edit#gid=0"
-
-gs4_deauth()
-adcp_tracking <- googlesheets4::read_sheet(
-  link, sheet = "Wave Tracking", range = "A:F"
-) 
+adcp_tracking <- adcp_read_tracking() %>% 
+  filter(data_measured %in% c("Wave", "Current & Wave"))
 
 # extract deployment info from the file name
 depl_info <- wv_extract_deployment_info(depl_file)
 
 depl_tracking <- adcp_tracking %>%
-  filter(depl_date == depl_info$depl_date, station == depl_info$station)
+  filter(deployment_date == depl_info$depl_date, station == depl_info$station)
 
 depl_id <- depl_tracking$depl_id
 county <- depl_tracking$county
 waterbody <- depl_tracking$waterbody
 station <- depl_tracking$station
-depl_date <- depl_tracking$depl_date
+depl_date <- depl_tracking$deployment_date
 
 # path to data export
 path_export <- file.path("R:/data_branches/wave/processed_data/deployment_data")
@@ -103,18 +99,20 @@ depl_dat <- depl_file %>%
 depl_out <- depl_dat %>% 
   # filter these out NOW, otherwise some GOOD depth obs get flagged by spike test
   filter(trim_obs != 4) %>% 
-  select(-trim_obs) %>% 
   wv_add_opendata_cols(metadata = depl_tracking) %>% 
   wv_test_all(county = county, max_interval_hours = max_interval_hours) %>%
   wv_assign_max_flag() %>% 
   wv_append_long_variable_names() 
  
 if(depl_id == "QN005") {
-   depl_out  <-  depl_out  %>% 
+  depl_out  <-  depl_out  %>% 
     mutate(
       trim_obs = if_else(row_number() == 1, ordered(4, levels = 1:4), trim_obs)
-    )
+    ) %>% 
+    filter(trim_obs != 4) 
 }
+
+depl_out <- select(depl_out, -trim_obs)
 
 # summarise flags
 qc_summary <-  depl_out %>% 
@@ -184,7 +182,7 @@ dat <- depl_out %>%
   wv_pivot_flags_longer()
 
 var_pairs <- list(
-  c("significant_height_m", "peak_period_s", "to_direction_degree"),
+  c("significant_height_m", "peak_period_s", "from_direction_degree"),
   c("sea_water_speed_m_s", "sea_water_to_direction_degree"),
   c("sensor_depth_below_surface_m", NA),
   c("average_height_largest_33_percent_m", "period_largest_33_percent_s"),
