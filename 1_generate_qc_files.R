@@ -1,6 +1,5 @@
 library(here)
 library(quarto)
-library(rmarkdown)
 library(waves)
 
 ################ update this ################
@@ -25,7 +24,7 @@ sapply(depls, function(x) {
 
 
 # Single Deployment -------------------------------------------------------
-x <- depls[11]
+x <- depls[18]
 depl_file <- x
 quarto_render(
   input = here("1_compile_and_apply_qc_tests_wave_template.qmd"),
