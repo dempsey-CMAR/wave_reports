@@ -6,5 +6,8 @@
 archive/
 data/
 report_elements/
-*.html
+*_qc_reports/
+
+.html
 *.docx
+*.pdf
